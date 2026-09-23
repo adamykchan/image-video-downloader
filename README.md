@@ -14,18 +14,31 @@ This is a fork of [Image Downloader](https://github.com/PactInteractive/image-do
 To learn how to use the extension, check out the [User Guide](USERGUIDE.md). Everything in it still applies, and the video features are listed [below](#changes-from-the-original).
 
 ## Install
-This version isn't on the Chrome Web Store. Install it from a release instead:
-1. Download the `.zip` file of the [latest release](https://github.com/adamykchan/image-video-downloader/releases/latest) and unzip it
+This version isn't on the Chrome Web Store, and extensions installed this way don't update automatically. Pick one of the options below.
+
+Requires Chrome 121 or newer. Tested on Google Chrome. Microsoft Edge and Brave should work but haven't been tested.
+
+### Option 1: Update script (Windows, recommended)
+The script downloads the latest release for you, so updating takes one double-click.
+
+**First time:**
+1. Download [`update-extension.cmd`](scripts/update-extension.cmd) and [`update-extension.ps1`](scripts/update-extension.ps1) (open each one and click **Download raw file**) and save both in the same folder
+2. Double-click `update-extension.cmd`. It installs the extension into `%USERPROFILE%\Extensions\image-video-downloader`
+3. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked** and pick that folder
+
+**To update:** double-click `update-extension.cmd` again, then click the reload button (↻) on the extension's card in `chrome://extensions`. If you're already on the latest version, the script says so and changes nothing.
+
+The script checks each download's checksum before installing it. The first time you run it, Windows may warn that the file came from the internet - click **More info**, then **Run anyway**.
+
+### Option 2: Manual
+1. Download the `.zip` file of the [latest release](https://github.com/adamykchan/image-video-downloader/releases/latest) and unzip it into a folder you'll keep
 2. Open the extension list in your browser: `chrome://extensions` (`edge://extensions` or `brave://extensions` also work)
 3. Enable **Developer mode**
 4. Click the **Load unpacked** button and pick the unzipped folder
 
-Requires Chrome 121 or newer. Tested on Google Chrome. Microsoft Edge and Brave should work but haven't been tested.
+**To update:** unzip the new release into the same folder, replacing the old files, then click the reload button (↻) on the extension's card.
 
-To update, download the new release, unzip it over the old folder (or remove the old extension and load the new folder), then click the reload button on the extension's card in `chrome://extensions`.
-
-### Install and update with a script (Windows)
-Download [`update-extension.cmd`](scripts/update-extension.cmd) and [`update-extension.ps1`](scripts/update-extension.ps1) into the same folder and double-click `update-extension.cmd`. It downloads the latest release into `%USERPROFILE%\Extensions\image-video-downloader`, checks the file's checksum, and does nothing if you're already up to date. The first time, load that folder with **Load unpacked**. After each update, click the reload button on the extension's card.
+Always update into the same folder - Chrome ties the extension (and your saved settings) to the folder's location.
 
 ## Changes from the original
 Modified from Image Downloader 4.5.3 on 2026-09-23 (first released as version 4.5.3.1):

@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # The progress bar makes Invoke-WebRequest very slow in Windows PowerShell
 
 $Repo = 'adamykchan/image-video-downloader'
-$VersionFile = Join-Path $InstallDir '.installed-version'
+$ManifestPath = Join-Path $InstallDir 'manifest.json'
 
 # Windows PowerShell 5.1 doesn't enable TLS 1.2 by default, which GitHub requires
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -30,17 +30,21 @@ $tag = $release.tag_name
 $asset = $release.assets | Where-Object { $_.name -like '*.zip' } | Select-Object -First 1
 if (-not $asset) { throw "Release $tag has no .zip file attached." }
 
-$installed = if (Test-Path $VersionFile) { (Get-Content $VersionFile -Raw).Trim() } else { '' }
-if ($installed -eq $tag -and -not $Force) {
-	Write-Host "Already up to date ($tag) in $InstallDir"
-	exit 0
-}
+# Release tags are the manifest version with a "v" in front, e.g. v4.5.3.1
+$latest = $tag -replace '^v', ''
+
+# The installed version, whether it was installed by this script or unzipped by hand
+$manifest = if (Test-Path $ManifestPath) { Get-Content $ManifestPath -Raw | ConvertFrom-Json } else { $null }
+$installed = if ($manifest -and $manifest.name -like 'Image Downloader*') { $manifest.version } else { '' }
 
 # Refuse to empty a folder that isn't an install of this extension
-if ((Test-Path $InstallDir) -and (Get-ChildItem $InstallDir -Force | Select-Object -First 1)) {
-	$manifestPath = Join-Path $InstallDir 'manifest.json'
-	$isExtension = (Test-Path $manifestPath) -and ((Get-Content $manifestPath -Raw | ConvertFrom-Json).name -like 'Image Downloader*')
-	if (-not $isExtension) { throw "$InstallDir isn't empty and doesn't contain this extension. Pick an empty folder with -InstallDir." }
+if (-not $installed -and (Test-Path $InstallDir) -and (Get-ChildItem $InstallDir -Force | Select-Object -First 1)) {
+	throw "$InstallDir isn't empty and doesn't contain this extension. Pick an empty folder with -InstallDir."
+}
+
+if ($installed -eq $latest -and -not $Force) {
+	Write-Host "Already up to date ($latest) in $InstallDir"
+	exit 0
 }
 
 $temp = Join-Path ([IO.Path]::GetTempPath()) ("image-video-downloader-" + [guid]::NewGuid())
@@ -64,15 +68,15 @@ try {
 	New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 	Get-ChildItem $InstallDir -Force | Remove-Item -Recurse -Force
 	Copy-Item -Path (Join-Path $extracted '*') -Destination $InstallDir -Recurse
-	Set-Content -Path $VersionFile -Value $tag -Encoding ASCII
 } finally {
 	Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 if ($installed) {
-	Write-Host "Updated $installed -> $tag in $InstallDir"
+	Write-Host "Updated $installed -> $latest in $InstallDir"
 	Write-Host 'Now open chrome://extensions and click the reload button on the extension.'
+	Write-Host '(If you have never loaded this folder in Chrome, use "Load unpacked" instead.)'
 } else {
-	Write-Host "Installed $tag in $InstallDir"
+	Write-Host "Installed $latest in $InstallDir"
 	Write-Host 'Now open chrome://extensions, turn on Developer mode, click "Load unpacked" and pick that folder.'
 }
