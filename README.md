@@ -24,6 +24,9 @@ Requires Chrome 121 or newer. Tested on Google Chrome. Microsoft Edge and Brave 
 
 To update, download the new release, unzip it over the old folder (or remove the old extension and load the new folder), then click the reload button on the extension's card in `chrome://extensions`.
 
+### Install and update with a script (Windows)
+Download [`update-extension.cmd`](scripts/update-extension.cmd) and [`update-extension.ps1`](scripts/update-extension.ps1) into the same folder and double-click `update-extension.cmd`. It downloads the latest release into `%USERPROFILE%\Extensions\image-video-downloader`, checks the file's checksum, and does nothing if you're already up to date. The first time, load that folder with **Load unpacked**. After each update, click the reload button on the extension's card.
+
 ## Changes from the original
 Modified from Image Downloader 4.5.3 on 2026-09-23 (first released as version 4.5.3.1):
 - **Finds videos on the page**: `<video>` and `<source>` elements, direct links to video files (mp4, webm, mov, mkv, avi and more), and video files loaded by streaming players
