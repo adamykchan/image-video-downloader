@@ -84,6 +84,16 @@ See [Releases](https://github.com/adamykchan/image-video-downloader/releases) fo
 5. Click the **Load unpacked** button, navigate to the extension root folder and pick the `build` folder
 6. Enjoy!
 
+## Making a release
+1. Raise `version` in `package.json` (e.g. `4.5.3.1` → `4.5.3.2`) - the build copies it into `manifest.json`
+2. Build and zip:
+    ```bash
+    bun run build
+    ```
+    This creates `image-video-downloader-v<version>.zip` next to the project folder
+3. Commit and push the changes
+4. On GitHub, [draft a new release](https://github.com/adamykchan/image-video-downloader/releases/new) with the tag `v<version>` and drop the zip into the **attach binaries** box (not the description), so the update scripts can find it
+
 ## Test
 Run and watch tests related to locally changed files - useful during development:
 ```bash
