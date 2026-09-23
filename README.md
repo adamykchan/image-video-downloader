@@ -19,23 +19,26 @@ This version isn't on the Chrome Web Store, and extensions installed this way do
 Requires Chrome 121 or newer. Tested on Google Chrome. Microsoft Edge and Brave should work but haven't been tested.
 
 ### Option 1: Update script (recommended)
-The script downloads the latest release for you, so updating takes one double-click. It installs the extension into an `image-video-downloader` folder **next to the script**, so keep the script in a folder you won't move - for example an `Extensions` folder in your home folder, which can also hold updaters for other extensions later:
+The script downloads the latest release for you, so updating takes one double-click. If you're already on the latest version, it says so and changes nothing.
+
+**Where it installs:** wherever you put the script. It creates an `image-video-downloader` folder right next to itself and installs the extension there. So before you start, pick a folder to keep the script in - for example a new folder called `Extensions` (it can hold updaters for other extensions later, too). After the first run it looks like this:
 
 ```
-Extensions/
-├── update-image-downloader.cmd     (Windows)
-├── update-image-downloader.ps1     (Windows)
-├── update-image-downloader.command (macOS)
-└── image-video-downloader/         ← load this folder in Chrome
+Extensions/                          ← any folder you choose
+├── update-image-downloader.cmd      (Windows)
+├── update-image-downloader.ps1      (Windows)
+├── update-image-downloader.command  (macOS)
+└── image-video-downloader/          ← created by the script - load this folder in Chrome
 ```
 
-It checks each download's checksum before installing it, and if you're already on the latest version, it says so and changes nothing.
+Don't move or rename the folder afterwards. Chrome ties the extension (and your saved settings) to its location, so a moved copy counts as a new extension.
 
 #### Windows
 **First time:**
-1. Download [`update-image-downloader.cmd`](scripts/update-image-downloader.cmd) and [`update-image-downloader.ps1`](scripts/update-image-downloader.ps1) (open each one and click **Download raw file**) and move both into your `Extensions` folder
-2. Double-click `update-image-downloader.cmd`
-3. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked** and pick the new `image-video-downloader` folder
+1. Create the folder you'll keep the script in, e.g. `Extensions` in your user folder
+2. Download [`update-image-downloader.cmd`](scripts/update-image-downloader.cmd) and [`update-image-downloader.ps1`](scripts/update-image-downloader.ps1) (open each one and click **Download raw file**) and move both into that folder
+3. Double-click `update-image-downloader.cmd`. It creates `image-video-downloader` in the same folder
+4. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked** and pick that new `image-video-downloader` folder
 
 **To update:** double-click `update-image-downloader.cmd` again, then click the reload button (↻) on the extension's card in `chrome://extensions`.
 
@@ -43,15 +46,15 @@ The first time you run it, Windows may warn that the file came from the internet
 
 #### macOS
 **First time:**
-1. Download [`update-image-downloader.command`](scripts/update-image-downloader.command) (open it and click **Download raw file**) and move it into your `Extensions` folder (`~/Extensions`)
-2. Open **Terminal** and run these two commands. The first makes the script double-clickable, the second runs it:
-    ```bash
-    chmod +x ~/Extensions/update-image-downloader.command
-    ~/Extensions/update-image-downloader.command
-    ```
-3. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked** and pick the new `image-video-downloader` folder. In the folder picker, press **Cmd+Shift+G** and paste `~/Extensions/image-video-downloader`
+1. Create the folder you'll keep the script in, e.g. `Extensions` in your home folder
+2. Download [`update-image-downloader.command`](scripts/update-image-downloader.command) (open it and click **Download raw file**) and move it into that folder
+3. Make it double-clickable: open **Terminal**, type `chmod +x ` (with a space at the end), drag the script from Finder into the Terminal window, and press **Return**
+4. Double-click `update-image-downloader.command`. It creates `image-video-downloader` in the same folder
+5. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked** and pick that new `image-video-downloader` folder
 
-**To update:** double-click `update-image-downloader.command` in Finder (or run it in Terminal again), then click the reload button (↻) on the extension's card. If macOS says it can't be opened because it's from an unidentified developer, right-click the file, choose **Open**, then **Open** again - you only need to do this once.
+**To update:** double-click `update-image-downloader.command` again, then click the reload button (↻) on the extension's card.
+
+The first time you double-click it, macOS may say it can't be opened because it's from an unidentified developer. Right-click the file, choose **Open**, then **Open** again - you only need to do this once.
 
 ### Option 2: Manual
 1. Download the `.zip` file of the [latest release](https://github.com/adamykchan/image-video-downloader/releases/latest) and unzip it into a folder you'll keep
