@@ -1,2 +1,4 @@
 lib/ linguist-generated=true
 package-lock.json linguist-generated=true
+*.command text eol=lf
+*.cmd text eol=crlf
