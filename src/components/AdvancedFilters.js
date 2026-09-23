@@ -17,6 +17,7 @@ import {
 	hideErroredImages,
 	onlyImagesFromLinks,
 	onlyUniqueImages,
+	onlyVideos,
 } from './data.js';
 
 export function AdvancedFilters() {
@@ -131,6 +132,15 @@ export function AdvancedFilters() {
 					onChange=${setToCheckboxValue(onlyImagesFromLinks)}
 				>
 					Only links
+				<//>
+
+				<${Checkbox}
+					class="py-1"
+					title="Only show videos found on the page"
+					checked=${onlyVideos.value}
+					onChange=${setToCheckboxValue(onlyVideos)}
+				>
+					Only videos
 				<//>
 
 				<${Checkbox}

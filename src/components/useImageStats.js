@@ -21,6 +21,7 @@ import { useSignal } from '../html.js';
  * @typedef {Object} ImageStats
  * @property {{ value: ImageStatsData }} data
  * @property {(event: Event) => void} onLoad
+ * @property {(event: Event) => void} onVideoLoad
  * @property {() => void} onError
  * @property {() => void} reset
  */
@@ -76,6 +77,36 @@ export function useImageStats(/** @type {string} */ imageUrl) {
 		}
 	}
 
+	function onVideoLoad(/** @type {Event} */ e) {
+		const video = /** @type {HTMLVideoElement} */ (e.currentTarget);
+		const url = video.currentSrc || video.src;
+		const urlExtension = getImageExtension(url);
+
+		const loaded = {
+			width: video.videoWidth,
+			height: video.videoHeight,
+			size: /** @type {ImageSize | null} */ (null),
+			extension: urlExtension,
+			status: /** @type {'loaded'} */ ('loaded'),
+		};
+
+		if (cache.size >= MAX_CACHE_SIZE) {
+			const firstKey = cache.keys().next().value;
+			if (firstKey !== undefined) cache.delete(firstKey);
+		}
+		cache.set(url, loaded);
+		data.value = loaded;
+
+		// The performance API only reports partial sizes for videos (metadata/range requests),
+		// so ask the server for the full size instead
+		fetchResourceSize(url).then((size) => {
+			if (size) {
+				data.value = { ...data.value, size };
+				cache.set(url, data.value);
+			}
+		});
+	}
+
 	function onError() {
 		data.value = {
 			width: 0,
@@ -100,6 +131,7 @@ export function useImageStats(/** @type {string} */ imageUrl) {
 	return {
 		data,
 		onLoad,
+		onVideoLoad,
 		onError,
 		reset,
 	};
@@ -149,7 +181,7 @@ export function getImageExtension(/** @type {string} */ url) {
 }
 
 /** @type {Record<string, string>} */
-const mimeExtensions = {
+export const mimeExtensions = {
 	'image/jpeg': 'jpg',
 	'image/png': 'png',
 	'image/gif': 'gif',
@@ -160,7 +192,44 @@ const mimeExtensions = {
 	'image/tiff': 'tiff',
 	'image/x-icon': 'ico',
 	'image/vnd.microsoft.icon': 'ico',
+	'video/mp4': 'mp4',
+	'video/webm': 'webm',
+	'video/ogg': 'ogv',
+	'video/quicktime': 'mov',
+	'video/mpeg': 'mpg',
+	'video/x-matroska': 'mkv',
+	'video/x-msvideo': 'avi',
 };
+
+/** @returns {Promise<ImageSize | null>} */
+export async function fetchResourceSize(/** @type {string} */ url) {
+	if (!url || url.startsWith('data:') || url.startsWith('blob:')) return null;
+
+	try {
+		const response = await fetch(url, {
+			method: 'HEAD',
+			cache: 'force-cache',
+		});
+
+		if (response.ok) {
+			const contentLength = response.headers.get('content-length');
+			if (contentLength) {
+				const bytes = parseInt(contentLength, 10);
+				if (!isNaN(bytes) && bytes > 0) {
+					return {
+						bytes,
+						formatted: formatFileSize(bytes),
+						fromCache: false,
+					};
+				}
+			}
+		}
+	} catch {
+		// CORS blocked or network error
+	}
+
+	return null;
+}
 
 /** @returns {Promise<string>} */
 export async function fetchImageExtension(/** @type {string} */ url) {
@@ -184,7 +253,7 @@ export async function fetchImageExtension(/** @type {string} */ url) {
 			const contentType = response.headers.get('content-type');
 			if (contentType) {
 				const mime = contentType.split(';')[0].trim().toLowerCase();
-				return mimeExtensions[mime] || (mime.startsWith('image/') ? mime.replace('image/', '') : '');
+				return mimeExtensions[mime] || (/^(image|video)\//.test(mime) ? mime.replace(/^(image|video)\//, '') : '');
 			}
 		}
 	} catch {

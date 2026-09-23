@@ -17,6 +17,7 @@ import {
 	loadImagesFromActiveTab,
 	onlyImagesFromLinks,
 	onlyUniqueImages,
+	onlyVideos,
 	openMode,
 	scriptError,
 	showAdvancedFilters,
@@ -31,6 +32,7 @@ export function Header(/** @type {Object} */ props) {
 		filterMaxHeightEnabled,
 		onlyUniqueImages,
 		onlyImagesFromLinks,
+		onlyVideos,
 		hideErroredImages,
 	].filter((s) => s.value).length;
 

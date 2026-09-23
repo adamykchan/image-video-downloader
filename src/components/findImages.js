@@ -55,6 +55,9 @@ export async function findImages(
 	const imageUrlRegex =
 		/(?:([^:\/?#]+):)?(?:\/\/([^\/?#]*))?([^?#]*\.(?:bmp|gif|ico|jfif|jpe?g|png|svg|tiff?|webp|avif))(?:\?([^#]*))?(?:#(.*))?/i;
 
+	const videoUrlRegex =
+		/(?:([^:\/?#]+):)?(?:\/\/([^\/?#]*))?([^?#]*\.(?:mp4|m4v|webm|ogv|mov|mpe?g|avi|mkv|3gpp?|flv|wmv))(?:\?([^#]*))?(?:#(.*))?/i;
+
 	/** @returns {(Document | ShadowRoot)[]} */
 	function getRoots(/** @type {Document} */ root) {
 		/** @type {(Document | ShadowRoot)[]} */
@@ -156,6 +159,15 @@ export async function findImages(
 			return null;
 		}
 
+		if (element.tagName.toLowerCase() === 'video') {
+			// The poster attribute of a <video> is an image worth collecting
+			const poster = /** @type {HTMLVideoElement} */ (element).poster;
+			if (poster && isImageURL(poster)) {
+				return [stripHash(poster)];
+			}
+			return null;
+		}
+
 		if (element.tagName.toLowerCase() === 'a') {
 			const href = /** @type {HTMLAnchorElement} */ (element).href;
 			if (isImageURL(href)) {
@@ -177,6 +189,152 @@ export async function findImages(
 
 	function isImageURL(/** @type {string} */ url) {
 		return url.indexOf('data:image') === 0 || imageUrlRegex.test(url);
+	}
+
+	function isVideoURL(/** @type {string} */ url) {
+		return url.indexOf('data:video') === 0 || videoUrlRegex.test(url);
+	}
+
+	function stripHash(/** @type {string} */ url) {
+		const hashIndex = url.indexOf('#');
+		return hashIndex >= 0 ? url.slice(0, hashIndex) : url;
+	}
+
+	/** @returns {string[]} */
+	function extractVideosFromSelector(/** @type {(Document | ShadowRoot)[]} */ roots, /** @type {string} */ selector) {
+		const videos = /** @type {Set<string>} */ (new Set());
+
+		for (const root of roots) {
+			root.querySelectorAll(selector).forEach((element) => {
+				const urls = extractVideoUrlsFromElement(element);
+				urls?.forEach((url) => {
+					if (url) {
+						videos.add(relativeUrlToAbsolute(url));
+					}
+				});
+			});
+		}
+
+		return [...videos];
+	}
+
+	/** @returns {string[] | null} */
+	function extractVideoUrlsFromElement(/** @type {Element} */ element) {
+		const tagName = element.tagName.toLowerCase();
+
+		if (tagName === 'video') {
+			const videos = [];
+
+			// currentSrc reflects the <source> child the browser actually picked
+			const currentSrc = /** @type {HTMLVideoElement} */ (element).currentSrc;
+			if (currentSrc && currentSrc.indexOf('blob:') !== 0) {
+				videos.push(stripHash(currentSrc));
+			}
+
+			const src = /** @type {HTMLVideoElement} */ (element).src;
+			if (src && src.indexOf('blob:') !== 0) {
+				videos.push(stripHash(src));
+			}
+
+			// data-src for lazy loading
+			const dataSrc = element.getAttribute?.('data-src');
+			if (dataSrc && dataSrc.indexOf('blob:') !== 0) {
+				videos.push(stripHash(dataSrc));
+			}
+
+			return videos.length > 0 ? videos : null;
+		}
+
+		if (tagName === 'source') {
+			// <source> children of <video> use src (unlike <picture> sources, which use srcset)
+			const src = /** @type {HTMLSourceElement} */ (element).src || element.getAttribute?.('src');
+			if (!src || src.indexOf('blob:') === 0) return null;
+
+			const type = element.getAttribute?.('type') || '';
+			const parentTag = element.parentElement?.tagName.toLowerCase();
+			if (type.indexOf('video/') === 0 || parentTag === 'video' || isVideoURL(src)) {
+				return [stripHash(src)];
+			}
+			return null;
+		}
+
+		if (tagName === 'a') {
+			const href = /** @type {HTMLAnchorElement} */ (element).href;
+			if (href && isVideoURL(href)) {
+				return [href];
+			}
+			return null;
+		}
+
+		return null;
+	}
+
+	// Streaming players (HLS/DASH via Media Source Extensions) give <video> a `blob:` src, so the
+	// real media URLs only show up in the network requests the page made
+	/** @returns {string[]} */
+	function getLoadedResourceURLs() {
+		try {
+			return context.window.performance.getEntriesByType('resource').map((entry) => entry.name);
+		} catch {
+			return [];
+		}
+	}
+
+	// Pinterest streams videos over HLS, but usually also serves them as progressive MP4s. A video
+	// is identified by a hash path that appears in its playlist, its poster and the page's data:
+	//   https://v1.pinimg.com/videos/iht/hls/bb/b9/de/<hash>.m3u8
+	//   https://i.pinimg.com/videos/thumbnails/originals/bb/b9/de/<hash>.0000000.jpg  (poster)
+	// The MP4's path varies between videos, and some are HLS-only, so each known variant is
+	// checked in turn and videos without one are dropped:
+	//   https://v1.pinimg.com/videos/iht/720p/bb/b9/de/<hash>.mp4
+	//   https://v1.pinimg.com/videos/iht/expMp4/bb/b9/de/<hash>_720w.mp4
+	/** @returns {Promise<string[]>} */
+	async function extractPinterestVideos(/** @type {(Document | ShadowRoot)[]} */ roots) {
+		const videoRegex = /v\d*\.pinimg\.com\/videos\/([\w-]+)\/[\w-]+\/((?:[0-9a-f]{2}\/){3}[0-9a-f]{32})/gi;
+		const posterRegex = /i\.pinimg\.com\/videos\/thumbnails\/originals\/((?:[0-9a-f]{2}\/){3}[0-9a-f]{32})/gi;
+
+		const texts = [...getLoadedResourceURLs()];
+		for (const root of roots) {
+			// Videos that haven't started playing yet have only fetched their poster
+			root.querySelectorAll('video[poster]').forEach((element) => {
+				texts.push(/** @type {HTMLVideoElement} */ (element).poster);
+			});
+			// Pin data (including the MP4 URLs) is embedded in inline scripts
+			root.querySelectorAll('script:not([src])').forEach((element) => {
+				if (element.textContent?.includes('pinimg.com')) texts.push(element.textContent);
+			});
+		}
+
+		// Hash path -> directory ("iht", "mc", ...), or '' when only the poster was seen
+		const videos = /** @type {Map<string, string>} */ (new Map());
+		for (const rawText of texts) {
+			// Unescape the slashes of URLs inside inline JSON
+			const text = rawText.replace(/\\\/|\\u002F/gi, '/');
+			for (const match of text.matchAll(videoRegex)) {
+				if (!videos.get(match[2])) videos.set(match[2], match[1]);
+			}
+			for (const match of text.matchAll(posterRegex)) {
+				if (!videos.has(match[1])) videos.set(match[1], '');
+			}
+		}
+
+		const found = await Promise.all(
+			[...videos].slice(0, 100).map(async ([hash, directory]) => {
+				for (const dir of directory ? [directory] : ['iht', 'mc']) {
+					for (const url of [
+						`https://v1.pinimg.com/videos/${dir}/720p/${hash}.mp4`,
+						`https://v1.pinimg.com/videos/${dir}/expMp4/${hash}_720w.mp4`,
+					]) {
+						try {
+							const response = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+							if (response.ok) return url;
+						} catch {}
+					}
+				}
+				return '';
+			})
+		);
+		return found.filter(Boolean);
 	}
 
 	function extractSrcsetURLs(/** @type {string} */ srcset) {
@@ -216,8 +374,12 @@ export async function findImages(
 
 	const roots = getRoots(context.document);
 	return {
-		allImages: extractImagesFromSelector(roots, 'img, image, source, use, a, [class], [style]'),
+		allImages: extractImagesFromSelector(roots, 'img, image, video, source, use, a, [class], [style]'),
 		linkedImages: extractImagesFromSelector(roots, 'a'), // Do not merge into `allImages` - we want to preserve the order of images from the DOM
+		allVideos: [
+			...new Set([...extractVideosFromSelector(roots, 'video, source, a'), ...(await extractPinterestVideos(roots))]),
+		],
+		linkedVideos: extractVideosFromSelector(roots, 'a'),
 		origin: context.window.location.origin,
 	};
 }

@@ -955,4 +955,54 @@ describe('findImages', () => {
 
 		expect(result.allImages).toContain('http://example.com/shadow-image.jpg');
 	});
+
+	it('finds Pinterest MP4s from HLS playlists, video posters and inline pin data, dropping HLS-only videos', async () => {
+		const hash = (prefix: string) => `${prefix}/${prefix}/${prefix}/${prefix.repeat(16)}`;
+		const video: MockElement & { poster: string } = {
+			tagName: 'VIDEO',
+			src: 'blob:https://www.pinterest.com/1234',
+			poster: `https://i.pinimg.com/videos/thumbnails/originals/${hash('bb')}.0000000.jpg`,
+		};
+		// Pin data embeds URLs as JSON, with escaped slashes
+		const script = {
+			tagName: 'SCRIPT',
+			textContent: JSON.stringify({ url: `https://v1.pinimg.com/videos/iht/hls/${hash('dd')}.m3u8` }).replace(
+				/\//g,
+				'\/'
+			),
+		};
+		const mockDocument: MockDocument = {
+			querySelectorAll(selector: string) {
+				if (selector.includes('video')) return [video];
+				if (selector.includes('script')) return [script];
+				return [];
+			},
+		};
+		const mockWindow = {
+			location: { origin: 'https://www.pinterest.com' },
+			getComputedStyle: () => ({ backgroundImage: '' }),
+			performance: {
+				getEntriesByType: () => [
+					{ name: `https://v1.pinimg.com/videos/iht/hls/${hash('aa')}_240w.m3u8` },
+					{ name: `https://v1.pinimg.com/videos/iht/hls/${hash('aa')}_240w.cmfv` },
+					{ name: `https://v1.pinimg.com/videos/iht/hls/${hash('cc')}.m3u8` },
+				],
+			},
+		};
+		// cc is HLS-only, so none of its MP4 variants exist
+		const existing = new Set([
+			`https://v1.pinimg.com/videos/iht/720p/${hash('aa')}.mp4`,
+			`https://v1.pinimg.com/videos/mc/720p/${hash('bb')}.mp4`,
+			`https://v1.pinimg.com/videos/iht/expMp4/${hash('dd')}_720w.mp4`,
+		]);
+		const originalFetch = global.fetch;
+		global.fetch = (async (url: string) => ({ ok: existing.has(url) })) as unknown as typeof fetch;
+
+		try {
+			const result = await runFindImages(mockDocument, mockWindow);
+			expect(result.allVideos.toSorted()).toEqual([...existing].toSorted());
+		} finally {
+			global.fetch = originalFetch;
+		}
+	});
 });

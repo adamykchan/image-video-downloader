@@ -5,6 +5,7 @@ import { getReferralUrl, isIncludedIn, isNotIncludedIn, isNotStrictEqual, stopPr
 import * as actions from './actions.js';
 import { Checkbox } from './Checkbox.js';
 import {
+	allVideos,
 	columns,
 	displayedImages,
 	filteredOutImages,
@@ -209,6 +210,7 @@ function ImageCard(/** @type {{ imageUrl: string }} */ { imageUrl, ...props }) {
 	const statsAreLoaded = useComputed(() => stats.data.value.status === 'loaded');
 	const retryCount = useSignal(0);
 	const isSelected = selectedImages.value.includes(imageUrl);
+	const isVideo = allVideos.value.includes(imageUrl);
 
 	return html`
 		<div
@@ -228,19 +230,56 @@ function ImageCard(/** @type {{ imageUrl: string }} */ { imageUrl, ...props }) {
 								stats.reset();
 							}}
 						/>`
-					: html`<img
-							key=${retryCount}
-							class="drop-shadow-md"
-							src=${imageUrl}
-							onLoad=${(/** @type {Event}  */ e) => {
-								imageLoaded(imageUrl);
-								stats.onLoad(e);
-							}}
-							onError=${(/** @type {Event}  */ e) => {
-								imageErrored(imageUrl);
-								stats.onError();
-							}}
-						/>`
+					: isVideo
+						? html`<video
+								key=${retryCount}
+								class="drop-shadow-md"
+								src=${imageUrl}
+								preload="metadata"
+								muted
+								loop
+								playsinline
+								onLoadedMetadata=${(/** @type {Event}  */ e) => {
+									imageLoaded(imageUrl);
+									stats.onVideoLoad(e);
+								}}
+								onError=${(/** @type {Event}  */ e) => {
+									imageErrored(imageUrl);
+									stats.onError();
+								}}
+								onMouseEnter=${(/** @type {Event}  */ e) => {
+									/** @type {HTMLVideoElement} */ (e.currentTarget).play().catch(() => {});
+								}}
+								onMouseLeave=${(/** @type {Event}  */ e) => {
+									/** @type {HTMLVideoElement} */ (e.currentTarget).pause();
+								}}
+							/>`
+						: html`<img
+								key=${retryCount}
+								class="drop-shadow-md"
+								src=${imageUrl}
+								onLoad=${(/** @type {Event}  */ e) => {
+									imageLoaded(imageUrl);
+									stats.onLoad(e);
+								}}
+								onError=${(/** @type {Event}  */ e) => {
+									imageErrored(imageUrl);
+									stats.onError();
+								}}
+							/>`
+			}
+
+			${
+				isVideo && stats.data.value.status !== 'error'
+					? html`<div
+							class="pointer-events-none absolute inset-0 flex items-center justify-center group-hover:hidden"
+						>
+							<span
+								class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950/60 pl-1 text-lg text-white shadow-md"
+								>▶</span
+							>
+						</div>`
+					: null
 			}
 
 			<div
@@ -261,7 +300,7 @@ function ImageCard(/** @type {{ imageUrl: string }} */ { imageUrl, ...props }) {
 			></div>
 
 			<div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
-				<${RemoveBackgroundButton} imageUrl=${imageUrl} />
+				${isVideo ? null : html`<${RemoveBackgroundButton} imageUrl=${imageUrl} />`}
 				<${OpenImageButton} imageUrl=${imageUrl} onClick=${stopPropagation} />
 				<${DownloadImageButton} imageUrl=${imageUrl} onClick=${stopPropagation} />
 			</div>

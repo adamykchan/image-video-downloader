@@ -3,6 +3,7 @@ import { action, batch, computed, effect, signal } from '../html.js';
 import { isIncludedIn, isNotIncludedIn, isNotStrictEqual, unique } from '../utils.js';
 import { deduplicateImages } from './deduplicateImages.js';
 import { findImages } from './findImages.js';
+import { updatePreviewRefererRules } from './refererRules.js';
 
 // Options
 /** @typedef {typeof defaults} Options */
@@ -25,6 +26,7 @@ export const defaults = {
 	filter_max_height: 3000,
 	only_unique_images: true,
 	only_images_from_links: false,
+	only_videos: false,
 	hide_errored_images: false,
 	// Download
 	folder_name: '',
@@ -79,6 +81,8 @@ export const onlyUniqueImages = storedSignal('only_unique_images');
 
 export const onlyImagesFromLinks = storedSignal('only_images_from_links');
 
+export const onlyVideos = storedSignal('only_videos');
+
 export const hideErroredImages = storedSignal('hide_errored_images');
 
 // Download
@@ -114,6 +118,7 @@ export const initialize = action(async () => {
 		filter_max_height: filterMaxHeight,
 		only_unique_images: onlyUniqueImages,
 		only_images_from_links: onlyImagesFromLinks,
+		only_videos: onlyVideos,
 		hide_errored_images: hideErroredImages,
 		folder_name: folderName,
 		new_file_name: newFileName,
@@ -181,6 +186,9 @@ function parseLocalStorageValue(
 export const allImages = signal(/** @type {string[]} */ ([]));
 const linkedImages = signal(/** @type {string[]} */ ([]));
 
+// URLs in `allImages` that are videos - used to render <video> previews and filter by media type
+export const allVideos = signal(/** @type {string[]} */ ([]));
+
 export const imagesCache = { value: /** @type {HTMLDivElement | null} */ (null) }; // Not displayed; used for loading images and their stats like size or resolution
 
 export const imageLoaded = action((/** @type {string | undefined} */ url) => {
@@ -210,6 +218,10 @@ export const tab = signal('matching');
 
 export const matchingImages = computed(() => {
 	let filtered = onlyImagesFromLinks.value ? linkedImages.value : allImages.value;
+
+	if (onlyVideos.value) {
+		filtered = filtered.filter(isIncludedIn(allVideos.value));
+	}
 
 	let filterValue = filterUrl.value;
 	if (filterValue) {
@@ -255,13 +267,17 @@ export const matchingImages = computed(() => {
 		if (!imagesCache.value) return false;
 
 		/** @type {HTMLImageElement | null} */ const image = imagesCache.value.querySelector(`img[src="${url}"]`);
+		/** @type {HTMLVideoElement | null} */ const video = imagesCache.value.querySelector(`video[src="${url}"]`);
+
+		const width = image?.naturalWidth || video?.videoWidth || 0;
+		const height = image?.naturalHeight || video?.videoHeight || 0;
 
 		return (
 			// image && <-- we don't want this, it results in overly filtered images on initial load
-			(!filterMinWidthEnabled.value || filterMinWidth.value <= (image?.naturalWidth || 0)) &&
-			(!filterMaxWidthEnabled.value || (image?.naturalWidth || 0) <= filterMaxWidth.value) &&
-			(!filterMinHeightEnabled.value || filterMinHeight.value <= (image?.naturalHeight || 0)) &&
-			(!filterMaxHeightEnabled.value || (image?.naturalHeight || 0) <= filterMaxHeight.value) &&
+			(!filterMinWidthEnabled.value || filterMinWidth.value <= width) &&
+			(!filterMaxWidthEnabled.value || width <= filterMaxWidth.value) &&
+			(!filterMinHeightEnabled.value || filterMinHeight.value <= height) &&
+			(!filterMaxHeightEnabled.value || height <= filterMaxHeight.value) &&
 			(!hideErroredImages.value || !erroredImages.value.includes(url))
 		);
 	});
@@ -320,10 +336,24 @@ export const loadImagesFromActiveTab = action(
 						func: findImages,
 						args: [{ waitForIdleDOM }],
 					})
-					.then((messages) => {
+					.then(async (messages) => {
+						const images = unique(messages.flatMap((message) => message.result?.allImages || []));
+						const videos = unique(messages.flatMap((message) => message.result?.allVideos || []));
+						const linked = unique(messages.flatMap((message) => message.result?.linkedImages || []));
+						const linkedVideos = unique(messages.flatMap((message) => message.result?.linkedVideos || []));
+
+						// Let previews and stats load from hotlink-protected domains (e.g. WAF-guarded CDNs).
+						// Await this BEFORE rendering the media, so the first load attempts already carry the Referer
+						await updatePreviewRefererRules(
+							unique([...videos, ...images]),
+							activeTab.url && /^https?:/.test(activeTab.url) ? activeTab.url : ''
+						);
+
 						batch(() => {
-							allImages.value = unique(messages.flatMap((message) => message.result?.allImages || []));
-							linkedImages.value = unique(messages.flatMap((message) => message.result?.linkedImages || []));
+							allVideos.value = videos;
+							// Videos first - they are usually the page's hero content and there are few of them
+							allImages.value = unique([...videos, ...images]);
+							linkedImages.value = unique([...linkedVideos, ...linked]);
 							// Use `allImages` to preserve original DOM order.
 							erroredImages.value = allImages.value.filter(isIncludedIn(erroredImages.value));
 							selectedImages.value = allImages.value.filter(isIncludedIn(selectedImages.value));
